@@ -1,0 +1,13 @@
+{
+  "Port":1098,
+  "Address":"127.0.0.1",
+  "UserMySql":"root",
+  "PasswordMySql":"root",
+  "DatabaseMySql":"proftpd",
+  "Template":"/home/bob/HomeProject/ath/api_srvtosmb/answer.xml.tmp",
+  "MemcachedServer":"127.0.0.1",
+  "MemcachedPort": 11211,
+  "LdapServer": "ath.ru",
+  "DomainName":"ATH.RU",
+  "LdapPort": 389
+}
