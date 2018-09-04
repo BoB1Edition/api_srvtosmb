@@ -63,7 +63,7 @@ func (s *Server) Server(w http.ResponseWriter, r *http.Request) {
 	case "PUT":
 		s.CreateUser(values, w)
 	case "DELETE":
-		fmt.Println("DELETE")
+		s.DeleteUser(w, values)
 	case "LOCK":
 		s.LockUnlockUser(w, values["username"][0], true)
 	case "UNLOCK":
@@ -304,21 +304,21 @@ func (s *Server) CreateUser(values url.Values, w http.ResponseWriter) {
 	if password, err := values["password"]; err {
 		pass = password[0]
 	}
-	username := values["username"]
+	username := values["username"][0]
 	_, err = sqltgrous.Exec(username)
 	checkerr(err)
-	_, err = sqltusers.Exec(values["username"], pass)
+	_, err = sqltusers.Exec(username, pass)
 	checkerr(err)
-	incomming := s.pref.PathHomeDir + username[0] + "/Incoming"
+	incomming := s.pref.PathHomeDir + username + "/Incoming"
 	err = os.MkdirAll(incomming, 0700)
 	checkerr(err)
-	failed := s.pref.PathHomeDir + username[0] + "/Failed"
+	failed := s.pref.PathHomeDir + username + "/Failed"
 	err = os.MkdirAll(failed, 0700)
 	checkerr(err)
-	processed := s.pref.PathHomeDir + username[0] + "/Processed"
+	processed := s.pref.PathHomeDir + username + "/Processed"
 	err = os.MkdirAll(processed, 0700)
 	checkerr(err)
-	processing := s.pref.PathHomeDir + username[0] + "/Processing"
+	processing := s.pref.PathHomeDir + username + "/Processing"
 	err = os.MkdirAll(processing, 0700)
 	checkerr(err)
 	err = os.Chown(incomming, 112, 65534)

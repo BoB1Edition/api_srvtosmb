@@ -9,5 +9,6 @@
   "MemcachedPort": 11211,
   "LdapServer": "ath.ru",
   "DomainName":"ATH.RU",
-  "LdapPort": 389
+  "LdapPort": 389,
+  "PathHomeDir":"/srv/smb/"
 }
