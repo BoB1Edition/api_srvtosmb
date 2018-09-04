@@ -17,6 +17,7 @@ type Preference struct {
 	LdapServer      string
 	LdapPort        int
 	DomainName      string
+	PathHomeDir     string
 }
 
 func (pref *Preference) LoadPreference(fname string) error {

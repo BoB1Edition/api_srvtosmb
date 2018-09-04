@@ -50,30 +50,25 @@ func (s *Server) Server(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	values := r.URL.Query()
+	if _, err := values["username"]; err {
+	} else {
+		s.PrintError(&w, errors.New("value user not found"), 407)
+	}
 	switch r.Method {
 	case "GET":
 		fmt.Println("api_srvtosmb: ", values)
-		if v, err := values["username"]; err {
-			s.GetUserInfo(v, w)
-		} else {
-			s.PrintError(&w, errors.New("value user not found"), 407)
-		}
+		s.GetUserInfo(values["username"], w)
 	case "POST":
-		fmt.Println("api_srvtosmb: ", values)
-		if _, err := values["username"]; err {
-			s.PostUserInfo(values, w)
-		} else {
-			s.PrintError(&w, errors.New("value user not found"), 407)
-		}
+		s.PostUserInfo(values, w)
 
 	case "PUT":
-		fmt.Println("PUT")
+		s.CreateUser(values, w)
 	case "DELETE":
 		fmt.Println("DELETE")
 	case "LOCK":
-		fmt.Println("LOCK")
+		s.LockUnlockUser(w, values["username"][0], true)
 	case "UNLOCK":
-		fmt.Println("UNLOCK")
+		s.LockUnlockUser(w, values["username"][0], false)
 	}
 }
 
@@ -250,8 +245,10 @@ func (s *Server) PostUserInfo(values url.Values, w http.ResponseWriter) {
 		Password string `xml:"Password"`
 	}
 	sqlt, err := s.db.Prepare("update users set passwd=? where userid=?;")
+	defer sqlt.Close()
 	if err != nil {
 		fmt.Println("main: api_Prepare: ", err)
+		s.PrintError(&w, err, 501)
 		return
 	}
 	pass := StringWithCharset(10)
@@ -282,4 +279,120 @@ func (s *Server) Answer(w http.ResponseWriter, a ...interface{}) {
 		s.PrintError(&w, err, 500)
 	}
 	w.WriteHeader(200)
+}
+
+func (s *Server) CreateUser(values url.Values, w http.ResponseWriter) {
+	checkerr := func(err error) {
+		if err != nil {
+			fmt.Println("main: api_Prepare: ", err)
+			s.PrintError(&w, err, 500)
+			return
+		}
+	}
+	type Result struct {
+		Success  bool   `xml:"Success"`
+		Password string `xml:"Password"`
+	}
+	v := Result{}
+	sqltgrous, err := s.db.Prepare("INSERT INTO groups (groupname, gid, members) VALUES ('proftpd', 65534, ?);")
+	checkerr(err)
+	defer sqltgrous.Close()
+	sqltusers, err :=
+		s.db.Prepare("INSERT INTO users (userid, passwd, uid, gid, homedir, shell) VALUES (?, ?, 112, 65534, '/srv/smb/?/Incoming', '/usr/sbin/nologin');")
+	checkerr(err)
+	defer sqltusers.Close()
+	pass := StringWithCharset(10)
+	if password, err := values["password"]; err {
+		pass = password[0]
+	}
+	username := values["username"]
+	_, err = sqltgrous.Exec(username)
+	checkerr(err)
+	_, err = sqltusers.Exec(values["username"], pass)
+	checkerr(err)
+	incomming := s.pref.PathHomeDir + username[0] + "/Incoming"
+	err = os.MkdirAll(incomming, 0700)
+	checkerr(err)
+	failed := s.pref.PathHomeDir + username[0] + "/Failed"
+	err = os.MkdirAll(failed, 0700)
+	checkerr(err)
+	processed := s.pref.PathHomeDir + username[0] + "/Processed"
+	err = os.MkdirAll(processed, 0700)
+	checkerr(err)
+	processing := s.pref.PathHomeDir + username[0] + "/Processing"
+	err = os.MkdirAll(processing, 0700)
+	checkerr(err)
+	err = os.Chown(incomming, 112, 65534)
+	checkerr(err)
+	err = os.Chown(failed, 112, 65534)
+	checkerr(err)
+	err = os.Chown(processed, 112, 65534)
+	checkerr(err)
+	err = os.Chown(processing, 112, 65534)
+	checkerr(err)
+	v.Success = true
+	v.Password = pass
+	s.Answer(w, v)
+}
+
+func (s *Server) LockUnlockUser(w http.ResponseWriter, username string, lock bool) {
+	type Result struct {
+		Success bool `xml:"Success"`
+		Locked  bool `xml:"Locked"`
+	}
+	v := Result{}
+	rows, err := s.db.Prepare("update users set uid=? where userid=?;")
+	if err != nil {
+		s.PrintError(&w, err, 404)
+		return
+	}
+	defer rows.Close()
+	if lock {
+		_, err := rows.Exec(65534)
+		if err != nil {
+			s.PrintError(&w, err, 404)
+			return
+		}
+	} else {
+		_, err := rows.Exec(112)
+		if err != nil {
+			s.PrintError(&w, err, 404)
+			return
+		}
+	}
+	v.Success = true
+	v.Locked = lock
+	s.Answer(w, v)
+}
+
+func (s *Server) DeleteUser(w http.ResponseWriter, values url.Values) {
+	checkerr := func(err error) {
+		if err != nil {
+			fmt.Println("main: api_Prepare: ", err)
+			s.PrintError(&w, err, 500)
+			return
+		}
+	}
+	type Result struct {
+		Success     bool     `xml:"Success"`
+		UserDeleted []string `xml:"UserDeleted"`
+	}
+	v := Result{}
+	v.Success = true
+	sqltusers, err := s.db.Prepare("delete from users where userid=?;")
+	checkerr(err)
+	defer sqltusers.Close()
+	sqltgroups, err := s.db.Prepare("delete from groups where members=?;")
+	checkerr(err)
+	defer sqltgroups.Close()
+	for _, username := range values["username"] {
+		_, err := sqltgroups.Exec(username)
+		checkerr(err)
+		_, err = sqltusers.Exec(username)
+		checkerr(err)
+		err = os.RemoveAll(s.pref.PathHomeDir + username)
+		checkerr(err)
+		v.UserDeleted = append(v.UserDeleted, username)
+	}
+	s.Answer(w, v)
 }
