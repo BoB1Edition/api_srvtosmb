@@ -60,7 +60,6 @@ func (s *Server) Server(w http.ResponseWriter, r *http.Request) {
 		s.GetUserInfo(values["username"], w)
 	case "POST":
 		s.PostUserInfo(values, w)
-
 	case "PUT":
 		s.CreateUser(values, w)
 	case "DELETE":
