@@ -20,7 +20,7 @@ type Service struct {
 }
 
 func (service *Service) Manage() (string, error) {
-	errlog := log.New(os.Stderr, "api_smbtoftp", 0)
+	errlog := log.New(os.Stdout, "api_smbtoftp", 0)
 	pref := Preferences.Preference{}
 	if err := pref.LoadPreference("/etc/api_srvtosmb/config.json"); err != nil {
 		errlog.Println("Error: loading preference", err)
@@ -51,17 +51,18 @@ func (service *Service) Manage() (string, error) {
 	errlog.Println("start")
 	go Start(&pref)
 
-	interrupt := make(chan os.Signal, 1)
+	interrupt := make(chan os.Signal, 10)
 	signal.Notify(interrupt, os.Interrupt, os.Kill, syscall.SIGTERM)
+	signal.Notify(interrupt, os.Interrupt, os.Kill, syscall.SIGKILL)
 	for {
-		fmt.Println("For")
 		select {
 		case killSignal := <-interrupt:
 			errlog.Println("Got signal:", killSignal)
 			errlog.Println("Stoping listening on ")
 			//listener.Close()
-			if killSignal == os.Interrupt {
+			if killSignal == os.Interrupt || killSignal.String() == "terminated" {
 				return "Daemon was interrupted by system signal", nil
+				os.Exit(0)
 			}
 		}
 	}
