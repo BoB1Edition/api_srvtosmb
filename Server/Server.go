@@ -18,15 +18,17 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	_ "github.com/go-sql-driver/mysql"
-	"gopkg.in/ldap.v2"
+	ldap "gopkg.in/ldap.v2"
 )
 
+//Server struct
 type Server struct {
 	pref   *Preferences.Preference
 	client *memcache.Client
 	db     *sql.DB
 }
 
+//Load Preferences
 func (s *Server) LoadPref(pref *Preferences.Preference) {
 	s.pref = pref
 	s.client = memcache.New(s.pref.MemcachedServer + ":" + strconv.Itoa(s.pref.MemcachedPort))
@@ -297,7 +299,7 @@ func (s *Server) CreateUser(values url.Values, w http.ResponseWriter) {
 	checkerr(err)
 	defer sqltgrous.Close()
 	sqltusers, err :=
-		s.db.Prepare("INSERT INTO users (userid, passwd, uid, gid, homedir, shell) VALUES (?, ?, 112, 65534, '/srv/smb/?/Incoming', '/usr/sbin/nologin');")
+		s.db.Prepare("INSERT INTO users (userid, passwd, uid, gid, homedir, shell) VALUES (?, ?, 112, 65534, ?, '/usr/sbin/nologin');")
 	checkerr(err)
 	defer sqltusers.Close()
 	pass := StringWithCharset(10)
@@ -307,7 +309,8 @@ func (s *Server) CreateUser(values url.Values, w http.ResponseWriter) {
 	username := values["username"][0]
 	_, err = sqltgrous.Exec(username)
 	checkerr(err)
-	_, err = sqltusers.Exec(username, pass)
+	path := "/srv/smb/" + username + "/Incoming"
+	_, err = sqltusers.Exec(username, pass, path)
 	checkerr(err)
 	incomming := s.pref.PathHomeDir + username + "/Incoming"
 	err = os.MkdirAll(incomming, 0700)
